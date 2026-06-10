@@ -1,0 +1,193 @@
+{
+  "name": "Alerta de SLA",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        -288,
+        -32
+      ],
+      "id": "ffebb5df-1c4e-469c-b034-3df699d6250d",
+      "name": "Schedule Trigger"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1EJtrqG61n9vhMb9cdWhxjM8COGFHjbWJqaRNkY1p9nI",
+          "mode": "list",
+          "cachedResultName": "Tickets Nexus Telecom",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1EJtrqG61n9vhMb9cdWhxjM8COGFHjbWJqaRNkY1p9nI/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Página1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1EJtrqG61n9vhMb9cdWhxjM8COGFHjbWJqaRNkY1p9nI/edit#gid=0"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -48,
+        -32
+      ],
+      "id": "e0519b7a-d39d-402a-8546-33c092a824a0",
+      "name": "Get row(s) in sheet",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "7dYXd2aObUKPZbOS",
+          "name": "Google Sheets Matheus"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const agora = new Date();\nconst ticketsAtrasados = [];\n\nfor (const item of $input.all()) {\n  const ticket = item.json;\n  \n  if (ticket.Status !== 'Aberto') continue;\n  \n  // Separa \"25/03/2026, 21:29\" em data e hora\n  const [dataParte, horaParte] = ticket.Data_Hora.split(', ');\n  const [dia, mes, ano] = dataParte.split('/');\n  const [hora, minuto] = horaParte.split(':');\n  \n  // Cria a data em UTC-3 (Brasília)\n  const dataTicket = new Date(Date.UTC(ano, mes - 1, dia, parseInt(hora) + 3, minuto));\n  \n  const horasPassadas = (agora - dataTicket) / (1000 * 60 * 60);\n  \n  let limiteHoras;\n  if (ticket.Urgencia === 'alta') limiteHoras = 2;\n  else if (ticket.Urgencia === 'media') limiteHoras = 4;\n  else limiteHoras = 24;\n  \n  if (horasPassadas > limiteHoras) {\n    ticketsAtrasados.push({\n      json: {\n        ...ticket,\n        horas_em_aberto: Math.round(horasPassadas),\n        limite_horas: limiteHoras\n      }\n    });\n  }\n}\n\nreturn ticketsAtrasados.length > 0 ? ticketsAtrasados : [{ json: { sem_atraso: true } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        144,
+        -32
+      ],
+      "id": "edea4061-507a-402c-bcd5-c456248c554c",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "e36b0872-c00b-48e5-89b8-df45c0e79c07",
+              "leftValue": "={{ $json.sem_atraso }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        352,
+        -32
+      ],
+      "id": "b4f45fc8-c426-4e60-ae2c-02fc53d06d48",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "value": "C0AM2AHMUNT",
+          "mode": "list",
+          "cachedResultName": "canal-suporte-tecnico"
+        },
+        "text": "=🚨 *ALERTA DE SLA* — Ticket em atraso!  *Protocolo:* {{ $json.ID_Ticket }} *Cliente:* {{ $json.Remetente }} *Categoria:* {{ $json.Categoria }} *Urgência:* {{ $json.Urgencia }} *Aberto há:* {{ $json.horas_em_aberto }} horas *Prazo era:* {{ $json.limite_horas }} horas *Resumo:* {{ $json.Resumo_IA }}",
+        "otherOptions": {}
+      },
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.4,
+      "position": [
+        560,
+        -128
+      ],
+      "id": "3c487952-d587-436b-bb6d-9d2094529c9c",
+      "name": "Send a message",
+      "webhookId": "360bdefe-63c4-46cb-a37f-0b6cd24969ac",
+      "credentials": {
+        "slackOAuth2Api": {
+          "id": "Rko8Un4bGbhUejOV",
+          "name": "Slack account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Get row(s) in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get row(s) in sheet": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Send a message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "bb297dc3-c1cf-4569-b4cd-2837723a9a6f",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "5e1eb88718053a396aeaa64d45d22bcb02228b6e4b8149cb019ffb522a25239b"
+  },
+  "id": "zQG2wVwT1BmC78nG",
+  "tags": []
+}
