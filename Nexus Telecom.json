@@ -312,6 +312,31 @@
               },
               "renameOutput": true,
               "outputKey": "elogio"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "f400b6ae-66f0-471f-a025-555f7bb34e94",
+                    "leftValue": "={{ $json.Categoria }}",
+                    "rightValue": "outro",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "outro"
             }
           ]
         },
@@ -466,6 +491,17 @@
           "name": "Gmail Matheus"
         }
       }
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        464,
+        320
+      ],
+      "id": "7811d533-1028-496b-a60b-24412a3491f6",
+      "name": "No Operation, do nothing"
     }
   ],
   "pinData": {},
@@ -543,6 +579,13 @@
             "type": "main",
             "index": 0
           }
+        ],
+        [
+          {
+            "node": "No Operation, do nothing",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
@@ -597,7 +640,7 @@
     "binaryMode": "separate",
     "availableInMCP": false
   },
-  "versionId": "87b3f299-fcfc-4198-8f6f-40373d2cc956",
+  "versionId": "924a5586-4aab-4f31-a365-dd8535673181",
   "meta": {
     "templateCredsSetupCompleted": true,
     "instanceId": "5e1eb88718053a396aeaa64d45d22bcb02228b6e4b8149cb019ffb522a25239b"
