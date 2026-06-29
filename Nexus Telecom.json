@@ -10,9 +10,11 @@
             }
           ]
         },
+        "simple": false,
         "filters": {
           "readStatus": "unread"
-        }
+        },
+        "options": {}
       },
       "type": "n8n-nodes-base.gmailTrigger",
       "typeVersion": 1.3,
@@ -26,190 +28,6 @@
         "gmailOAuth2": {
           "id": "whDU5TU8JgBZREDq",
           "name": "Gmail Matheus"
-        }
-      }
-    },
-    {
-      "parameters": {
-        "modelId": {
-          "__rl": true,
-          "value": "gpt-4o-mini",
-          "mode": "list",
-          "cachedResultName": "GPT-4O-MINI"
-        },
-        "responses": {
-          "values": [
-            {
-              "content": "=Você é um classificador especializado de tickets de suporte da Nexus Telecom, provedora de internet.\n\nSua única função é ler o e-mail abaixo e retornar um JSON válido. Siga as regras com rigor absoluto.\n\nREGRAS OBRIGATÓRIAS:\n- Responda APENAS com o JSON. Nenhum texto antes, nenhum texto depois.\n- Não use markdown, não use blocos de código, não use crases.\n- O JSON deve ser válido e ter exatamente os 5 campos abaixo, sem campos extras.\n\nFORMATO OBRIGATÓRIO:\n{\n  \"categoria\": \"tecnico\" ou \"financeiro\" ou \"cancelamento\" ou \"elogio\" ou \"outro\",\n  \"urgencia\": \"alta\" ou \"media\" ou \"baixa\",\n  \"resumo\": \"uma frase de até 15 palavras descrevendo o problema\",\n  \"nome_cliente\": \"primeiro nome do remetente\",\n  \"prazo_resposta\": \"até 2 horas\" ou \"até 4 horas\" ou \"até 1 dia útil\"\n}\n\n━━━━━━━━━━━━━━━━━━━━━━━━\nREGRAS DE CATEGORIA — leia cada definição com atenção:\n\n- \"tecnico\"     → internet lenta, sem conexão, queda de sinal, problema no roteador, falha na linha, instabilidade, sem serviço\n- \"financeiro\"  → cobrança errada, fatura, boleto, pagamento, débito, valor incorreto, segunda via, desconto\n- \"cancelamento\"→ cliente quer cancelar o plano, solicita rescisão, quer encerrar contrato\n- \"elogio\"      → agradecimento, satisfação, cliente elogiando o serviço ou atendimento\n- \"outro\"       → qualquer assunto que não se encaixe nas categorias acima\n\nATENÇÃO: Classifique pela INTENÇÃO PRINCIPAL do e-mail. Se o cliente menciona lentidão E fatura, escolha a categoria do problema principal relatado.\n\n━━━━━━━━━━━━━━━━━━━━━━━━\nREGRAS DE URGÊNCIA:\n\n- \"alta\"  → cliente sem internet, cancelamento iminente, cobrança duplicada, perda financeira relatada, empresa sem serviço\n- \"media\" → lentidão, problema intermitente, dúvida sobre fatura, instabilidade ocasional\n- \"baixa\" → elogio, sugestão, dúvida geral, pedido de informação sem impacto imediato\n\n━━━━━━━━━━━━━━━━━━━━━━━━\nREGRAS DO RESUMO:\n\n- Escreva UMA frase direta de até 15 palavras descrevendo o problema relatado.\n- Use linguagem técnica e objetiva. Exemplo: \"Cliente sem conexão desde ontem à noite no bairro Centro.\"\n- NUNCA escreva \"E-mail sem conteúdo\" ou frases genéricas se houver qualquer informação no e-mail.\n- Se o e-mail estiver realmente vazio ou ilegível, escreva: \"E-mail sem conteúdo identificável.\"\n\n━━━━━━━━━━━━━━━━━━━━━━━━\nREGRAS DO NOME DO CLIENTE:\n\n- Extraia o PRIMEIRO NOME do remetente a partir do campo \"De:\" ou da assinatura no corpo do e-mail.\n- Exemplos válidos: \"João\", \"Maria\", \"Carlos\"\n- Use \"Cliente\" SOMENTE se absolutamente nenhum nome aparecer no e-mail inteiro.\n- NUNCA use \"Cliente\" se houver qualquer nome mencionado.\n\n━━━━━━━━━━━━━━━━━━━━━━━━\nREGRAS DO PRAZO DE RESPOSTA:\n\n- \"até 2 horas\"    → urgência alta\n- \"até 4 horas\"    → urgência média\n- \"até 1 dia útil\" → urgência baixa\n\n━━━━━━━━━━━━━━━━━━━━━━━━\nE-MAIL RECEBIDO:\n---\nDe: {{ $json.From }}\nAssunto: {{ $json.Subject }}\nMensagem: {{ $json.snippet }}\n---"
-            }
-          ]
-        },
-        "builtInTools": {},
-        "options": {}
-      },
-      "type": "@n8n/n8n-nodes-langchain.openAi",
-      "typeVersion": 2.1,
-      "position": [
-        -528,
-        -96
-      ],
-      "id": "a63fde8b-be34-4d6e-a7b2-bf21b7ec8f06",
-      "name": "Message a model",
-      "credentials": {
-        "openAiApi": {
-          "id": "2tTB0I6Hsj9fKK50",
-          "name": "OpenAI Matheus"
-        }
-      }
-    },
-    {
-      "parameters": {
-        "jsCode": "// Pega a resposta da IA (vem como texto)\nconst respostaIA = $input.first().json.output[0].content[0].text;\n\n// Transforma o texto JSON em objeto JavaScript\nconst classificacao = JSON.parse(respostaIA);\n\n// Pega os dados do e-mail original (Node 1 - Gmail)\nconst emailOriginal = $('Gmail Trigger').first().json;\n\n// Gera um ID único para o ticket\nconst agora = new Date();\nconst timestamp = agora.getTime();\nconst idTicket = `TKT-${timestamp.toString().slice(-6)}`;\n\n// Formata a data e hora no padrão brasileiro\nconst dataHora = agora.toLocaleString('pt-BR', {\n  timeZone: 'America/Sao_Paulo',\n  day: '2-digit', month: '2-digit', year: 'numeric',\n  hour: '2-digit', minute: '2-digit'\n});\n\n// Define o prazo de resposta baseado na urgência\nlet prazoResposta;\nif (classificacao.urgencia === 'alta') {\n  prazoResposta = 'até 2 horas';\n} else if (classificacao.urgencia === 'media') {\n  prazoResposta = 'até 4 horas';\n} else {\n  prazoResposta = 'até 1 dia útil';\n}\n\n// Retorna todos os dados organizados para o próximo node\nreturn [{\n  json: {\n    id_ticket: idTicket,\n    data_hora: dataHora,\n    remetente: emailOriginal.From,\n    assunto_original: emailOriginal['Subject'] || emailOriginal.subject || emailOriginal.snippet,\n    categoria: classificacao.categoria,\n    urgencia: classificacao.urgencia,\n    resumo_ia: classificacao.resumo,\n    nome_cliente: classificacao.nome_cliente,\n    prazo_resposta: prazoResposta,\n    email_resposta: emailOriginal.From,\n    thread_id: emailOriginal.threadId\n  }\n}];"
-      },
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        -176,
-        -96
-      ],
-      "id": "a3e5fe3e-2f96-4826-8538-136faa2711d4",
-      "name": "Code in JavaScript"
-    },
-    {
-      "parameters": {
-        "operation": "appendOrUpdate",
-        "documentId": {
-          "__rl": true,
-          "value": "1EJtrqG61n9vhMb9cdWhxjM8COGFHjbWJqaRNkY1p9nI",
-          "mode": "list",
-          "cachedResultName": "Tickets Nexus Telecom",
-          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1EJtrqG61n9vhMb9cdWhxjM8COGFHjbWJqaRNkY1p9nI/edit?usp=drivesdk"
-        },
-        "sheetName": {
-          "__rl": true,
-          "value": "gid=0",
-          "mode": "list",
-          "cachedResultName": "Página1",
-          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1EJtrqG61n9vhMb9cdWhxjM8COGFHjbWJqaRNkY1p9nI/edit#gid=0"
-        },
-        "columns": {
-          "mappingMode": "defineBelow",
-          "value": {
-            "ID_Ticket": "={{ $json.id_ticket }}",
-            "Data_Hora": "={{ $json.data_hora }}",
-            "Categoria": "={{ $json.categoria }}",
-            "Remetente": "={{ $json.nome_cliente }}",
-            "Resumo_IA": "={{ $json.resumo_ia }}",
-            "Urgencia": "={{ $json.urgencia }}",
-            "Canal_Slack_Notificado": "={{ $json.categoria }}",
-            "Status": "Aberto",
-            "Assunto_Original": "={{ $json.assunto_original }}"
-          },
-          "matchingColumns": [
-            "ID_Ticket"
-          ],
-          "schema": [
-            {
-              "id": "ID_Ticket",
-              "displayName": "ID_Ticket",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true,
-              "removed": false
-            },
-            {
-              "id": "Data_Hora",
-              "displayName": "Data_Hora",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true,
-              "removed": false
-            },
-            {
-              "id": "Remetente",
-              "displayName": "Remetente",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "Assunto_Original",
-              "displayName": "Assunto_Original",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "Categoria",
-              "displayName": "Categoria",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "Urgencia",
-              "displayName": "Urgencia",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "Resumo_IA",
-              "displayName": "Resumo_IA",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "Canal_Slack_Notificado",
-              "displayName": "Canal_Slack_Notificado",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "Status",
-              "displayName": "Status",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            }
-          ],
-          "attemptToConvertTypes": false,
-          "convertFieldsToString": false
-        },
-        "options": {}
-      },
-      "type": "n8n-nodes-base.googleSheets",
-      "typeVersion": 4.7,
-      "position": [
-        32,
-        -96
-      ],
-      "id": "a15b834b-f25c-4449-88e5-aee82fa51a71",
-      "name": "Append or update row in sheet",
-      "credentials": {
-        "googleSheetsOAuth2Api": {
-          "id": "7dYXd2aObUKPZbOS",
-          "name": "Google Sheets Matheus"
         }
       }
     },
@@ -345,7 +163,7 @@
       "type": "n8n-nodes-base.switch",
       "typeVersion": 3.4,
       "position": [
-        240,
+        656,
         -96
       ],
       "id": "01e8cc9d-5e44-495e-8328-f0087c608255",
@@ -361,75 +179,19 @@
           "mode": "list",
           "cachedResultName": "canal-suporte-tecnico"
         },
-        "text": "=🔧  *Novo Ticket: {{ $('Code in JavaScript').first().json.categoria | upper }}* \n\n*Protocolo:* {{ $('Code in JavaScript').first().json.id_ticket }}\n*Urgência:* {{ $('Code in JavaScript').first().json.urgencia }}\n*Resumo:* {{ $('Code in JavaScript').first().json.resumo_ia }}\n*Cliente:* {{ $('Code in JavaScript').first().json.nome_cliente }}\n*E-mail:* {{ $('Code in JavaScript').first().json.remetente }}\n*Assunto original:* {{ $('Code in JavaScript').first().json.assunto_original }}\n*Prazo de resposta:* {{ $('Code in JavaScript').first().json.prazo_resposta }}\n*Recebido em:* {{ $('Code in JavaScript').first().json.data_hora }}",
-        "otherOptions": {}
+        "text": "=🔧  *Novo Ticket: {{ $('Normalizar Dados').first().json.categoria | upper }}* \n\n*Protocolo:* {{ $('Normalizar Dados').first().json.id_ticket }}\n*Urgência:* {{ $('Normalizar Dados').first().json.urgencia }}\n*Resumo:* {{ $('Normalizar Dados').first().json.resumo_ia }}\n*Cliente:* {{ $('Normalizar Dados').first().json.nome_cliente }}\n*E-mail:* {{ $('Normalizar Dados').first().json.email_cliente }}\n*Assunto original:* {{ $('Normalizar Dados').first().json.assunto_original }}\n*Prazo de resposta:* {{ $('Normalizar Dados').first().json.prazo_resposta }}\n*Recebido em:* {{ $('Normalizar Dados').first().json.data_hora }}",
+        "otherOptions": {
+          "includeLinkToWorkflow": false
+        }
       },
       "type": "n8n-nodes-base.slack",
       "typeVersion": 2.4,
       "position": [
-        464,
+        880,
         -256
       ],
       "id": "f84d5f3a-aa6a-41c5-8793-ceebb9427229",
-      "name": "Send a message",
-      "webhookId": "e0e0d5a8-499e-45f8-bfa5-dc76cf43d6ae",
-      "credentials": {
-        "slackOAuth2Api": {
-          "id": "Rko8Un4bGbhUejOV",
-          "name": "Slack account"
-        }
-      }
-    },
-    {
-      "parameters": {
-        "authentication": "oAuth2",
-        "select": "channel",
-        "channelId": {
-          "__rl": true,
-          "value": "C0AMMBTK1M2",
-          "mode": "list",
-          "cachedResultName": "canal-retencao"
-        },
-        "text": "=🚨 *Novo Ticket: {{ $('Code in JavaScript').first().json.categoria | upper }}* \n\n*Protocolo:* {{ $('Code in JavaScript').first().json.id_ticket }}\n*Urgência:* {{ $('Code in JavaScript').first().json.urgencia }}\n*Resumo:* {{ $('Code in JavaScript').first().json.resumo_ia }}\n*Cliente:* {{ $('Code in JavaScript').first().json.nome_cliente }}\n*E-mail:* {{ $('Code in JavaScript').first().json.remetente }}\n*Assunto original:* {{ $('Code in JavaScript').first().json.assunto_original }}\n*Prazo de resposta:* {{ $('Code in JavaScript').first().json.prazo_resposta }}\n*Recebido em:* {{ $('Code in JavaScript').first().json.data_hora }}",
-        "otherOptions": {}
-      },
-      "type": "n8n-nodes-base.slack",
-      "typeVersion": 2.4,
-      "position": [
-        464,
-        16
-      ],
-      "id": "54afc8f6-ce20-4c26-a6db-83564038da21",
-      "name": "Send a message2",
-      "webhookId": "e0e0d5a8-499e-45f8-bfa5-dc76cf43d6ae",
-      "credentials": {
-        "slackOAuth2Api": {
-          "id": "Rko8Un4bGbhUejOV",
-          "name": "Slack account"
-        }
-      }
-    },
-    {
-      "parameters": {
-        "authentication": "oAuth2",
-        "select": "channel",
-        "channelId": {
-          "__rl": true,
-          "value": "C0AMWMC0WGZ",
-          "mode": "list",
-          "cachedResultName": "canal-marketing"
-        },
-        "text": "=⭐ *Novo Ticket: {{ $('Code in JavaScript').first().json.categoria | upper }}* \n\n*Protocolo:* {{ $('Code in JavaScript').first().json.id_ticket }}\n*Urgência:* {{ $('Code in JavaScript').first().json.urgencia }}\n*Resumo:* {{ $('Code in JavaScript').first().json.resumo_ia }}\n*Cliente:* {{ $('Code in JavaScript').first().json.nome_cliente }}\n*E-mail:* {{ $('Code in JavaScript').first().json.remetente }}\n*Assunto original:* {{ $('Code in JavaScript').first().json.assunto_original }}\n*Prazo de resposta:* {{ $('Code in JavaScript').first().json.prazo_resposta }}\n*Recebido em:* {{ $('Code in JavaScript').first().json.data_hora }}",
-        "otherOptions": {}
-      },
-      "type": "n8n-nodes-base.slack",
-      "typeVersion": 2.4,
-      "position": [
-        464,
-        160
-      ],
-      "id": "7cbb6c89-8276-4d42-af85-2ae93c260a4b",
-      "name": "Send a message3",
+      "name": "Slack - Técnico",
       "webhookId": "e0e0d5a8-499e-45f8-bfa5-dc76cf43d6ae",
       "credentials": {
         "slackOAuth2Api": {
@@ -448,17 +210,19 @@
           "mode": "list",
           "cachedResultName": "canal-financeiro"
         },
-        "text": "=💰 *Novo Ticket: {{ $('Code in JavaScript').first().json.categoria | upper }}* \n\n*Protocolo:* {{ $('Code in JavaScript').first().json.id_ticket }}\n*Urgência:* {{ $('Code in JavaScript').first().json.urgencia }}\n*Resumo:* {{ $('Code in JavaScript').first().json.resumo_ia }}\n*Cliente:* {{ $('Code in JavaScript').first().json.nome_cliente }}\n*E-mail:* {{ $('Code in JavaScript').first().json.remetente }}\n*Assunto original:* {{ $('Code in JavaScript').first().json.assunto_original }}\n*Prazo de resposta:* {{ $('Code in JavaScript').first().json.prazo_resposta }}\n*Recebido em:* {{ $('Code in JavaScript').first().json.data_hora }}",
-        "otherOptions": {}
+        "text": "=💰 *Novo Ticket: {{ $('Normalizar Dados').first().json.categoria | upper }}* \n\n*Protocolo:* {{ $('Normalizar Dados').first().json.id_ticket }}\n*Urgência:* {{ $('Normalizar Dados').first().json.urgencia }}\n*Resumo:* {{ $('Normalizar Dados').first().json.resumo_ia }}\n*Cliente:* {{ $('Normalizar Dados').first().json.nome_cliente }}\n*E-mail:* {{ $('Normalizar Dados').first().json.remetente }}\n*Assunto original:* {{ $('Normalizar Dados').first().json.assunto_original }}\n*Prazo de resposta:* {{ $('Normalizar Dados').first().json.prazo_resposta }}\n*Recebido em:* {{ $('Normalizar Dados').first().json.data_hora }}",
+        "otherOptions": {
+          "includeLinkToWorkflow": false
+        }
       },
       "type": "n8n-nodes-base.slack",
       "typeVersion": 2.4,
       "position": [
-        464,
+        880,
         -112
       ],
       "id": "4bd43fc0-92a0-48f6-9e14-1f8a77ba807b",
-      "name": "Send a message1",
+      "name": "Slack - Financeiro",
       "webhookId": "e0e0d5a8-499e-45f8-bfa5-dc76cf43d6ae",
       "credentials": {
         "slackOAuth2Api": {
@@ -469,21 +233,482 @@
     },
     {
       "parameters": {
+        "authentication": "oAuth2",
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "value": "C0AMMBTK1M2",
+          "mode": "list",
+          "cachedResultName": "canal-retencao"
+        },
+        "text": "=🚨 *Novo Ticket: {{ $('Normalizar Dados').first().json.categoria | upper }}* \n\n*Protocolo:* {{ $('Normalizar Dados').first().json.id_ticket }}\n*Urgência:* {{ $('Normalizar Dados').first().json.urgencia }}\n*Resumo:* {{ $('Normalizar Dados').first().json.resumo_ia }}\n*Cliente:* {{ $('Normalizar Dados').first().json.nome_cliente }}\n*E-mail:* {{ $('Normalizar Dados').first().json.remetente }}\n*Assunto original:* {{ $('Normalizar Dados').first().json.assunto_original }}\n*Prazo de resposta:* {{ $('Normalizar Dados').first().json.prazo_resposta }}\n*Recebido em:* {{ $('Normalizar Dados').first().json.data_hora }}",
+        "otherOptions": {
+          "includeLinkToWorkflow": false
+        }
+      },
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.4,
+      "position": [
+        880,
+        16
+      ],
+      "id": "54afc8f6-ce20-4c26-a6db-83564038da21",
+      "name": "Slack - Cancelamento",
+      "webhookId": "e0e0d5a8-499e-45f8-bfa5-dc76cf43d6ae",
+      "credentials": {
+        "slackOAuth2Api": {
+          "id": "Rko8Un4bGbhUejOV",
+          "name": "Slack account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "value": "C0AMWMC0WGZ",
+          "mode": "list",
+          "cachedResultName": "canal-marketing"
+        },
+        "text": "=⭐ *Novo Ticket: {{ $('Normalizar Dados').first().json.categoria | upper }}* \n\n*Protocolo:* {{ $('Normalizar Dados').first().json.id_ticket }}\n*Urgência:* {{ $('Normalizar Dados').first().json.urgencia }}\n*Resumo:* {{ $('Normalizar Dados').first().json.resumo_ia }}\n*Cliente:* {{ $('Normalizar Dados').first().json.nome_cliente }}\n*E-mail:* {{ $('Normalizar Dados').first().json.remetente }}\n*Assunto original:* {{ $('Normalizar Dados').first().json.assunto_original }}\n*Prazo de resposta:* {{ $('Normalizar Dados').first().json.prazo_resposta }}\n*Recebido em:* {{ $('Normalizar Dados').first().json.data_hora }}",
+        "otherOptions": {
+          "includeLinkToWorkflow": false
+        }
+      },
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.4,
+      "position": [
+        880,
+        160
+      ],
+      "id": "7cbb6c89-8276-4d42-af85-2ae93c260a4b",
+      "name": "Slack - Elogio",
+      "webhookId": "e0e0d5a8-499e-45f8-bfa5-dc76cf43d6ae",
+      "credentials": {
+        "slackOAuth2Api": {
+          "id": "Rko8Un4bGbhUejOV",
+          "name": "Slack account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "value": "C0BAUPEPA3E",
+          "mode": "list",
+          "cachedResultName": "erros-auditoria"
+        },
+        "text": "=⚠️ *Falha na triagem - Nexus Telecom*  *Remetente:* {{ $json.remetente }} *Assunto:* {{ $json.assunto_original }} *Ticket gerado:* {{ $json.id_ticket }} *Erro:* {{ $json.erro }} *Horário:* {{ $json.data_hora }}",
+        "otherOptions": {}
+      },
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.4,
+      "position": [
+        448,
+        128
+      ],
+      "id": "f248bce1-1f51-4fb3-942c-f50906885a77",
+      "name": "Slack - Erro IA",
+      "webhookId": "4ada59c1-d2ae-4f93-83a9-76e358e88c4b",
+      "credentials": {
+        "slackOAuth2Api": {
+          "id": "Rko8Un4bGbhUejOV",
+          "name": "Slack account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1EJtrqG61n9vhMb9cdWhxjM8COGFHjbWJqaRNkY1p9nI",
+          "mode": "list",
+          "cachedResultName": "Tickets Nexus Telecom",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1EJtrqG61n9vhMb9cdWhxjM8COGFHjbWJqaRNkY1p9nI/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 547909870,
+          "mode": "list",
+          "cachedResultName": "Descartados",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1EJtrqG61n9vhMb9cdWhxjM8COGFHjbWJqaRNkY1p9nI/edit#gid=547909870"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "remetente": "={{ $json.from.value[0].address }}",
+            "assunto": "={{ $json.subject }}",
+            "motivo": "email inválido",
+            "data_hora": "={{ $now.toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' }) }}",
+            "thread_id": "={{ $json.threadId }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "data_hora",
+              "displayName": "data_hora",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "remetente",
+              "displayName": "remetente",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "assunto",
+              "displayName": "assunto",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "motivo",
+              "displayName": "motivo",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "thread_id",
+              "displayName": "thread_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -288,
+        112
+      ],
+      "id": "d7430f53-b67d-46df-85ec-24cdffa87c90",
+      "name": "Sheets - Descartados",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "7dYXd2aObUKPZbOS",
+          "name": "Google Sheets Matheus"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "1EJtrqG61n9vhMb9cdWhxjM8COGFHjbWJqaRNkY1p9nI",
+          "mode": "list",
+          "cachedResultName": "Tickets Nexus Telecom",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1EJtrqG61n9vhMb9cdWhxjM8COGFHjbWJqaRNkY1p9nI/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Página1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1EJtrqG61n9vhMb9cdWhxjM8COGFHjbWJqaRNkY1p9nI/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "ID_Ticket": "={{ $json.id_ticket }}",
+            "Data_Hora": "={{ $json.data_hora }}",
+            "Categoria": "={{ $json.categoria }}",
+            "Remetente": "={{ $json.nome_cliente }}",
+            "Resumo_IA": "={{ $json.resumo_ia }}",
+            "Urgencia": "={{ $json.urgencia }}",
+            "Canal_Slack_Notificado": "={{ $json.categoria }}",
+            "Status": "Aberto",
+            "Assunto_Original": "={{ $json.assunto_original }}"
+          },
+          "matchingColumns": [
+            "ID_Ticket"
+          ],
+          "schema": [
+            {
+              "id": "ID_Ticket",
+              "displayName": "ID_Ticket",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Data_Hora",
+              "displayName": "Data_Hora",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Remetente",
+              "displayName": "Remetente",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Assunto_Original",
+              "displayName": "Assunto_Original",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Categoria",
+              "displayName": "Categoria",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Urgencia",
+              "displayName": "Urgencia",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Resumo_IA",
+              "displayName": "Resumo_IA",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Canal_Slack_Notificado",
+              "displayName": "Canal_Slack_Notificado",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Status",
+              "displayName": "Status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        448,
+        -96
+      ],
+      "id": "a15b834b-f25c-4449-88e5-aee82fa51a71",
+      "name": "Sheets - Tickets",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "7dYXd2aObUKPZbOS",
+          "name": "Google Sheets Matheus"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "10a339ba-be85-4779-aeb0-fa8ddea1d492",
+              "leftValue": "={{ $json.text }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            },
+            {
+              "id": "9fa93c00-8397-4ee6-8de5-89a5f9b08483",
+              "leftValue": "={{ \n  !$json.from.value[0].address.includes('noreply') &&\n  !$json.from.value[0].address.includes('no-reply') &&\n  !$json.from.value[0].address.includes('mailer-daemon') &&\n  !$json.from.value[0].address.includes('automated') &&\n  !$json.from.value[0].address.includes('donotreply')\n}}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            },
+            {
+              "id": "cf34bba2-025c-44bb-a222-e97244bfafeb",
+              "leftValue": "={{ $json.subject }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -528,
+        -96
+      ],
+      "id": "dc1a0f34-9823-4f99-8e3e-9ef2636d1276",
+      "name": "Filtro - Email Válido"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "dd88e2c2-a016-4fa0-a0e7-0791927cb6a3",
+              "leftValue": "={{ $json.sucesso === true }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        192,
+        -96
+      ],
+      "id": "0f1630b4-09d3-4a2d-bfd0-ed3e1dc9a5a0",
+      "name": "Filtro - Sucesso IA"
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "gpt-4o-mini",
+          "mode": "list",
+          "cachedResultName": "GPT-4O-MINI"
+        },
+        "responses": {
+          "values": [
+            {
+              "content": "=Você é um classificador especializado de tickets de suporte da Nexus Telecom, provedora de internet.\nSua única função é ler o e-mail abaixo e retornar um JSON válido. Siga as regras com rigor absoluto.\nREGRAS OBRIGATÓRIAS:\n- Responda APENAS com o JSON. Nenhum texto antes, nenhum texto depois.\n- Não use markdown, não use blocos de código, não use crases.\n- O JSON deve ser válido e ter exatamente os 5 campos abaixo, sem campos extras.\nFORMATO OBRIGATÓRIO:\n{\n  \"categoria\": \"tecnico\" ou \"financeiro\" ou \"cancelamento\" ou \"elogio\" ou \"outro\",\n  \"urgencia\": \"alta\" ou \"media\" ou \"baixa\",\n  \"resumo\": \"uma frase de até 15 palavras descrevendo o problema\",\n  \"nome_cliente\": \"primeiro nome do remetente\",\n  \"prazo_resposta\": \"até 2 horas\" ou \"até 4 horas\" ou \"até 1 dia útil\"\n}\n\n━━━━━━━━━━━━━━━━━━━━━━━━\nREGRAS DE CATEGORIA — leia cada definição com atenção:\n- \"tecnico\"     → internet lenta, sem conexão, queda de sinal, problema no roteador, falha na linha, instabilidade, sem serviço\n- \"financeiro\"  → cobrança errada, fatura, boleto, pagamento, débito, valor incorreto, segunda via, desconto\n- \"cancelamento\"→ cliente quer cancelar o plano, solicita rescisão, quer encerrar contrato\n- \"elogio\"      → agradecimento, satisfação, cliente elogiando o serviço ou atendimento\n- \"outro\"       → qualquer assunto que não se encaixe nas categorias acima\nATENÇÃO: Classifique pela INTENÇÃO PRINCIPAL do e-mail. Se o cliente menciona lentidão E fatura, escolha a categoria do problema principal relatado.\n\n━━━━━━━━━━━━━━━━━━━━━━━━\nREGRAS DE URGÊNCIA:\n- \"alta\"  → cliente sem internet, cancelamento iminente, cobrança duplicada, perda financeira relatada, empresa sem serviço\n- \"media\" → lentidão, problema intermitente, dúvida sobre fatura, instabilidade ocasional\n- \"baixa\" → elogio, sugestão, dúvida geral, pedido de informação sem impacto imediato\n\n━━━━━━━━━━━━━━━━━━━━━━━━\nREGRAS DO RESUMO:\n- Escreva UMA frase direta de até 15 palavras descrevendo o problema relatado.\n- Use linguagem técnica e objetiva. Exemplo: \"Cliente sem conexão desde ontem à noite no bairro Centro.\"\n- NUNCA escreva \"E-mail sem conteúdo\" ou frases genéricas se houver qualquer informação no e-mail.\n- Se o e-mail estiver realmente vazio ou ilegível, escreva: \"E-mail sem conteúdo identificável.\"\n\n━━━━━━━━━━━━━━━━━━━━━━━━\nREGRAS DO NOME DO CLIENTE:\n- Extraia o PRIMEIRO NOME do remetente a partir do campo \"De:\" ou da assinatura no corpo do e-mail.\n- Exemplos válidos: \"João\", \"Maria\", \"Carlos\"\n- Use \"Cliente\" SOMENTE se absolutamente nenhum nome aparecer no e-mail inteiro.\n- NUNCA use \"Cliente\" se houver qualquer nome mencionado.\n\n━━━━━━━━━━━━━━━━━━━━━━━━\nREGRAS DO PRAZO DE RESPOSTA:\n- \"até 2 horas\"    → urgência alta\n- \"até 4 horas\"    → urgência média\n- \"até 1 dia útil\" → urgência baixa\n\n━━━━━━━━━━━━━━━━━━━━━━━━\nE-MAIL RECEBIDO:\n---\nDe: {{ $json.From }}\nAssunto: {{ $json.subject || $json.Subject }}\nMensagem: {{ $json.text || $json.snippet }}\n---"
+            }
+          ]
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 2.1,
+      "position": [
+        -320,
+        -96
+      ],
+      "id": "a63fde8b-be34-4d6e-a7b2-bf21b7ec8f06",
+      "name": "Classificador",
+      "retryOnFail": true,
+      "waitBetweenTries": 2000,
+      "credentials": {
+        "openAiApi": {
+          "id": "2tTB0I6Hsj9fKK50",
+          "name": "OpenAI Matheus"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const emailOriginal = $('Gmail Trigger').first().json;\n\nconst fromRaw = emailOriginal.From || emailOriginal.from || '';\nconst fromString = typeof fromRaw === 'string' ? fromRaw : (fromRaw?.text || fromRaw?.value?.[0]?.address || JSON.stringify(fromRaw));\nconst fromClean = fromString.replace(/^From:\\s*/i, '').replace(/\"/g, '').trim();\n\ntry {\n  // Pega a resposta da IA (vem como texto)\n  const respostaIA = $input.first().json.output[0].content[0].text;\n  // Transforma o texto JSON em objeto JavaScript\n  const classificacao = JSON.parse(respostaIA);\n  // Gera um ID único para o ticket\n  const agora = new Date();\n  const timestamp = agora.getTime();\n  const idTicket = `TKT-${timestamp.toString().slice(-6)}`;\n  // Formata a data e hora no padrão brasileiro\n  const dataHora = agora.toLocaleString('pt-BR', {\n    timeZone: 'America/Sao_Paulo',\n    day: '2-digit', month: '2-digit', year: 'numeric',\n    hour: '2-digit', minute: '2-digit'\n  });\n  // Define o prazo de resposta baseado na urgência\n  let prazoResposta;\n  if (classificacao.urgencia === 'alta') {\n    prazoResposta = 'até 2 horas';\n  } else if (classificacao.urgencia === 'media') {\n    prazoResposta = 'até 4 horas';\n  } else {\n    prazoResposta = 'até 1 dia útil';\n  }\n  // Retorna todos os dados organizados para o próximo node\n  return [{\n    json: {\n      id_ticket: idTicket,\n      data_hora: dataHora,\n      remetente: fromClean,\n      email_cliente: fromClean.match(/<(.+)>/)?.[1] || fromClean,\n      assunto_original: emailOriginal['Subject'] || emailOriginal.subject || emailOriginal.snippet,\n      categoria: classificacao.categoria,\n      urgencia: classificacao.urgencia,\n      resumo_ia: classificacao.resumo,\n      nome_cliente: (() => {\n        if (classificacao.nome_cliente && classificacao.nome_cliente !== 'Cliente') {\n          return classificacao.nome_cliente;\n        }\n        const fromMatch = fromClean.match(/^([^<]+)</);\n        if (fromMatch) return fromMatch[1].trim().split(' ')[0];\n        return 'Cliente';\n      })(),\n      prazo_resposta: prazoResposta,\n      email_resposta: fromClean,\n      thread_id: emailOriginal.threadId,\n      sucesso: true\n    }\n  }];\n} catch (error) {\n  // OpenAI retornou algo inesperado — não quebra o fluxo\n  const agora = new Date();\n  const idTicket = `TKT-ERR-${agora.getTime().toString().slice(-6)}`;\n  const dataHora = agora.toLocaleString('pt-BR', {\n    timeZone: 'America/Sao_Paulo',\n    day: '2-digit', month: '2-digit', year: 'numeric',\n    hour: '2-digit', minute: '2-digit'\n  });\n  return [{\n    json: {\n      id_ticket: idTicket,\n      data_hora: dataHora,\n      remetente: fromClean,\n      assunto_original: emailOriginal['Subject'] || emailOriginal.subject || emailOriginal.snippet,\n      categoria: 'indefinido',\n      urgencia: 'media',\n      resumo_ia: 'Falha ao processar resposta da IA',\n      nome_cliente: '',\n      prazo_resposta: 'até 4 horas',\n      email_resposta: fromClean,\n      thread_id: emailOriginal.threadId,\n      sucesso: false,\n      erro: error.message\n    }\n  }];\n}"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -16,
+        -96
+      ],
+      "id": "a3e5fe3e-2f96-4826-8538-136faa2711d4",
+      "name": "Normalizar Dados"
+    },
+    {
+      "parameters": {
         "resource": "thread",
         "operation": "reply",
         "threadId": "={{ $('Gmail Trigger').first().json.threadId }}",
         "messageId": "={{ $('Gmail Trigger').first().json.id }}",
-        "message": "=Olá, {{ $('Code in JavaScript').first().json.nome_cliente }}!\n\nRecebemos seu contato e ele já foi registrado em nosso sistema.\n\n📋 *Protocolo:* {{ $('Code in JavaScript').first().json.id_ticket }}\n🗓️ *Data/Hora:* {{ $('Code in JavaScript').first().json.data_hora }}\n⏰ *Previsão de retorno:* {{ $('Code in JavaScript').first().json.prazo_resposta }}\n\nNossa equipe está analisando sua solicitação e retornará\ndentro do prazo informado.\n\nSe precisar de atualização antes disso, responda este\ne-mail informando o número do protocolo acima.\n\nAtenciosamente,\nEquipe de Suporte\nNexus Telecom\nsuporte@nexustelecom.com.br",
+        "message": "=Olá, {{ $('Normalizar Dados').first().json.nome_cliente }}!\n\nRecebemos seu contato e ele já foi registrado em nosso sistema.\n\n📋 *Protocolo:* {{ $('Normalizar Dados').first().json.id_ticket }}\n🗓️ *Data/Hora:* {{ $('Normalizar Dados').first().json.data_hora }}\n⏰ *Previsão de retorno:* {{ $('Normalizar Dados').first().json.prazo_resposta }}\n\nNossa equipe está analisando sua solicitação e retornará\ndentro do prazo informado.\n\nSe precisar de atualização antes disso, responda este\ne-mail informando o número do protocolo acima.\n\nAtenciosamente,\nEquipe de Suporte\nNexus Telecom\nsuporte@nexustelecom.com.br",
         "options": {}
       },
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2.2,
       "position": [
-        736,
+        1152,
         -48
       ],
       "id": "da9d7f88-8000-42b1-81ac-c292b05ac40d",
-      "name": "Reply to a message",
+      "name": "Gmail - Resposta Automatica",
       "webhookId": "88392830-8de5-4dff-b393-bfe09251101c",
       "credentials": {
         "gmailOAuth2": {
@@ -497,11 +722,11 @@
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
       "position": [
-        464,
+        880,
         320
       ],
       "id": "7811d533-1028-496b-a60b-24412a3491f6",
-      "name": "No Operation, do nothing"
+      "name": "Ignorar - Outro"
     }
   ],
   "pinData": {},
@@ -510,40 +735,7 @@
       "main": [
         [
           {
-            "node": "Message a model",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Message a model": {
-      "main": [
-        [
-          {
-            "node": "Code in JavaScript",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Code in JavaScript": {
-      "main": [
-        [
-          {
-            "node": "Append or update row in sheet",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Append or update row in sheet": {
-      "main": [
-        [
-          {
-            "node": "Switch",
+            "node": "Filtro - Email Válido",
             "type": "main",
             "index": 0
           }
@@ -554,79 +746,148 @@
       "main": [
         [
           {
-            "node": "Send a message",
+            "node": "Slack - Técnico",
             "type": "main",
             "index": 0
           }
         ],
         [
           {
-            "node": "Send a message1",
+            "node": "Slack - Financeiro",
             "type": "main",
             "index": 0
           }
         ],
         [
           {
-            "node": "Send a message2",
+            "node": "Slack - Cancelamento",
             "type": "main",
             "index": 0
           }
         ],
         [
           {
-            "node": "Send a message3",
+            "node": "Slack - Elogio",
             "type": "main",
             "index": 0
           }
         ],
         [
           {
-            "node": "No Operation, do nothing",
+            "node": "Ignorar - Outro",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Send a message": {
+    "Slack - Técnico": {
       "main": [
         [
           {
-            "node": "Reply to a message",
+            "node": "Gmail - Resposta Automatica",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Send a message1": {
+    "Slack - Financeiro": {
       "main": [
         [
           {
-            "node": "Reply to a message",
+            "node": "Gmail - Resposta Automatica",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Send a message2": {
+    "Slack - Cancelamento": {
       "main": [
         [
           {
-            "node": "Reply to a message",
+            "node": "Gmail - Resposta Automatica",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Send a message3": {
+    "Slack - Elogio": {
       "main": [
         [
           {
-            "node": "Reply to a message",
+            "node": "Gmail - Resposta Automatica",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sheets - Tickets": {
+      "main": [
+        [
+          {
+            "node": "Switch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filtro - Email Válido": {
+      "main": [
+        [
+          {
+            "node": "Classificador",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Sheets - Descartados",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filtro - Sucesso IA": {
+      "main": [
+        [
+          {
+            "node": "Sheets - Tickets",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Slack - Erro IA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Classificador": {
+      "main": [
+        [
+          {
+            "node": "Normalizar Dados",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalizar Dados": {
+      "main": [
+        [
+          {
+            "node": "Filtro - Sucesso IA",
             "type": "main",
             "index": 0
           }
@@ -638,9 +899,14 @@
   "settings": {
     "executionOrder": "v1",
     "binaryMode": "separate",
-    "availableInMCP": false
+    "availableInMCP": false,
+    "timeSavedMode": "fixed",
+    "errorWorkflow": "WqCVoWeoTTRAej8C",
+    "callerPolicy": "workflowsFromSameOwner",
+    "timezone": "America/Sao_Paulo",
+    "saveExecutionProgress": true
   },
-  "versionId": "924a5586-4aab-4f31-a365-dd8535673181",
+  "versionId": "9085940d-4a76-468f-859c-e668a6a168ef",
   "meta": {
     "templateCredsSetupCompleted": true,
     "instanceId": "5e1eb88718053a396aeaa64d45d22bcb02228b6e4b8149cb019ffb522a25239b"
