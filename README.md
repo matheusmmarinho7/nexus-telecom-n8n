@@ -1,6 +1,6 @@
 # Nexus Telecom — Triagem Automática de E-mails com IA
 
-[![LinkedIn](https://img.shields.io/badge/LinkedIn-Matheus%20Marques-blue)](https://linkedin.com/in/seu-perfil)
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-Matheus%20Marques-blue)](www.linkedin.com/in/matheus-marques-marinho)
 [![GitHub](https://img.shields.io/badge/GitHub-matheusmmarinho7-black)](https://github.com/matheusmmarinho7)
 
 > Projeto fictício baseado em um caso de uso real, desenvolvido para fins de estudo e portfólio.
