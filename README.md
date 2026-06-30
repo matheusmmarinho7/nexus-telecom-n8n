@@ -1,136 +1,81 @@
 # Nexus Telecom — Triagem Automática de E-mails com IA
 
-Sistema de triagem inteligente de e-mails de suporte construído em n8n, com classificação por GPT-4o-mini, roteamento automático para canais Slack e registro em Google Sheets.
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-Matheus%20Marques-blue)](https://linkedin.com/in/seu-perfil)
+[![GitHub](https://img.shields.io/badge/GitHub-matheusmmarinho7-black)](https://github.com/matheusmmarinho7)
+
+> Projeto fictício baseado em um caso de uso real, desenvolvido para fins de estudo e portfólio.
 
 ---
 
-## Visão geral
+Toda empresa que tem suporte ao cliente enfrenta o mesmo problema: alguém precisa ficar horas por dia lendo e-mail por e-mail, decidindo para qual setor encaminhar cada um. É um trabalho repetitivo, cansativo e que tira uma pessoa de atividades muito mais importantes.
 
-Provedoras de internet e empresas de suporte recebem dezenas de e-mails por dia de clientes com problemas técnicos, dúvidas financeiras e solicitações de cancelamento. Sem triagem, tudo cai na mesma caixa e o tempo de resposta aumenta.
-
-Este workflow resolve isso automaticamente:
-
-1. Detecta novos e-mails na caixa do Gmail
-2. Filtra e-mails inválidos antes de processar
-3. Classifica o conteúdo com GPT-4o-mini
-4. Gera um ticket com ID único e prazo de resposta
-5. Registra no Google Sheets para controle
-6. Notifica o canal Slack correto por categoria
-7. Responde automaticamente ao cliente no Gmail
+Foi pensando nisso que criei esse projeto. Uma triagem manual de 50 e-mails por dia pode levar de 1 a 2 horas. Esse workflow faz isso em segundos, sem intervenção humana — o e-mail chega, a IA lê, classifica, gera o ticket e notifica o time certo automaticamente.
 
 ---
 
-## Fluxo completo
-
-```
-Gmail Trigger
-    ↓
-Filtro - Email Válido (IF)
-    ├── inválido → Sheets - Descartados
-    └── válido
-         ↓
-    OpenAI - Classificador (GPT-4o-mini)
-         ↓
-    Normalizar Dados (Code JS)
-         ↓
-    Filtro - Sucesso IA (IF)
-         ├── sucesso: false → Slack - Erro IA
-         └── sucesso: true
-              ↓
-         Sheets - Tickets
-              ↓
-         Switch (categoria)
-              ├── tecnico      → Slack - Técnico      → Gmail - Resposta Auto
-              ├── financeiro   → Slack - Financeiro   → Gmail - Resposta Auto
-              ├── cancelamento → Slack - Cancelamento → Gmail - Resposta Auto
-              ├── elogio       → Slack - Elogio       → Gmail - Resposta Auto
-              └── outro        → Ignorar - Outro
-```
+![Fluxo no n8n](./workflow.png.webp)
 
 ---
 
-## Tratamento de erros — 5 camadas
+## Como funciona na prática
 
-### Camada 1 — Filtro pré-AI
-Bloqueia e-mails inválidos antes de consumir tokens da OpenAI.
+Quando um cliente manda um e-mail, o workflow entra em ação:
 
-Condições verificadas:
-- Corpo do e-mail não está vazio
-- Remetente não é automático (`noreply`, `no-reply`, `mailer-daemon`, `automated`, `donotreply`)
-- Assunto não está vazio
-
-E-mails bloqueados são registrados na aba `DESCARTADOS` do Sheets com data, remetente, assunto e motivo.
-
-### Camada 2 — Retry automático no OpenAI
-Configurado com 3 tentativas e 2 segundos de intervalo entre elas. Se a API da OpenAI retornar timeout, erro 429 ou qualquer falha, o n8n tenta automaticamente antes de desistir. Após 3 falhas consecutivas, o erro sobe para o Error Trigger global.
-
-### Camada 3 — Try-catch no Code JS
-Toda a lógica de normalização está dentro de um bloco `try-catch`. Se a IA retornar JSON malformado ou campos inesperados, o `catch` retorna um objeto padrão com `sucesso: false` em vez de quebrar o fluxo.
-
-### Camada 4 — Rota de erro por sucesso=false
-O nó `Filtro - Sucesso IA` verifica o campo `sucesso` antes de gravar no Sheets. Tickets com `sucesso: false` são desviados para o canal `#erros-nexus` no Slack com remetente, assunto, ID do ticket e mensagem de erro — sem perder o rastro do e-mail.
-
-### Camada 5 — Error Trigger global
-Workflow separado (`Nexus - Error Handler`) vinculado nas configurações do workflow principal. Captura qualquer falha não tratada em qualquer nó — Sheets offline, Slack fora do ar, credencial expirada — e notifica via Slack com nome do nó, mensagem de erro e horário.
+1. Verifica se o e-mail é válido — filtra mensagens automáticas e e-mails vazios antes mesmo de acionar a IA
+2. Manda o conteúdo para o GPT-4o-mini, que lê e classifica: é problema técnico? financeiro? cancelamento? elogio?
+3. Gera um ticket com ID único e define o prazo de resposta baseado na urgência
+4. Registra tudo no Google Sheets para controle
+5. Notifica o canal correto no Slack para o time agir
+6. Responde automaticamente ao cliente no Gmail
 
 ---
 
-## Categorias de classificação
+## O que o workflow classifica
 
 | Categoria | Exemplos |
 |---|---|
-| `tecnico` | Internet lenta, sem conexão, queda de sinal, problema no roteador |
-| `financeiro` | Boleto, fatura, cobrança errada, segunda via |
-| `cancelamento` | Cancelar plano, rescisão, encerrar contrato |
-| `elogio` | Agradecimento, satisfação, elogio ao atendimento |
-| `outro` | Qualquer assunto fora das categorias acima |
+| Técnico | Internet lenta, sem conexão, queda de sinal |
+| Financeiro | Boleto, fatura, cobrança errada, segunda via |
+| Cancelamento | Cliente quer encerrar o contrato |
+| Elogio | Agradecimento, satisfação com o serviço |
+| Outro | Qualquer coisa fora das categorias acima |
 
 ---
 
-## Campos do ticket gerado
+## Como o workflow lida com falhas
 
-| Campo | Descrição |
-|---|---|
-| `id_ticket` | ID único no formato `TKT-XXXXXX` |
-| `data_hora` | Timestamp no fuso America/Sao_Paulo |
-| `nome_cliente` | Primeiro nome extraído do remetente |
-| `email_cliente` | Endereço de e-mail do remetente |
-| `assunto_original` | Assunto do e-mail recebido |
-| `categoria` | Classificação da IA |
-| `urgencia` | `alta`, `media` ou `baixa` |
-| `resumo_ia` | Resumo em até 15 palavras gerado pela IA |
-| `prazo_resposta` | `até 2 horas`, `até 4 horas` ou `até 1 dia útil` |
-| `thread_id` | ID da thread do Gmail para rastreamento |
-| `sucesso` | `true` se a IA processou corretamente, `false` se houve falha |
+Para garantir que nenhum e-mail se perca, mesmo que algo dê errado, o workflow tem 5 camadas de proteção:
+
+**Filtro pré-IA** — e-mails inválidos são bloqueados antes de qualquer processamento e registrados numa aba separada para auditoria. Isso também evita gastar tokens da OpenAI à toa.
+
+**Retry automático no OpenAI** — se a API falhar ou travar, o workflow tenta mais 2 vezes com intervalo de 2 segundos antes de desistir. Um problema pontual não derruba o processo inteiro.
+
+**Try-catch no Code JS** — se a IA retornar algo fora do formato esperado, o fluxo não quebra. Ele marca o ticket como falha e segue em frente, sem perder o e-mail.
+
+**Rota de erro** — tickets que falharam na classificação são desviados para um canal de erros no Slack com todos os dados do remetente, para ação manual.
+
+**Error Trigger global** — um workflow separado que fica escutando qualquer falha em qualquer nó. Se o Sheets cair, o Slack sair do ar ou qualquer coisa inesperada acontecer, um alerta é enviado automaticamente.
 
 ---
 
 ## Stack
 
 - **n8n** — orquestração do workflow
-- **OpenAI GPT-4o-mini** — classificação e extração de dados
+- **OpenAI GPT-4o-mini** — classificação dos e-mails
 - **Google Sheets** — log de tickets e descartados
 - **Slack** — notificações por categoria e alertas de erro
-- **Gmail** — trigger de entrada e resposta automática
-- **Oracle Cloud Free Tier** — infraestrutura (Ubuntu 22.04, Docker)
+- **Gmail** — entrada dos e-mails e resposta automática
+- **Oracle Cloud Free Tier** — servidor onde o n8n roda (Ubuntu 22.04, Docker)
 
 ---
 
-## Como importar
+## Como importar no seu n8n
 
-1. Baixe o arquivo `Nexus_Telecom.json`
+1. Baixe o arquivo `Nexus Telecom.json`
 2. No n8n, clique em **+** → **Import from file**
-3. Configure as credenciais: Gmail, OpenAI, Google Sheets, Slack
-4. Ajuste o ID da planilha Google Sheets nas configurações do nó `Sheets - Tickets`
-5. Crie um workflow separado com o nó `Error Trigger` e vincule nas Settings → Error Workflow
+3. Configure as credenciais: Gmail, OpenAI, Google Sheets e Slack
+4. Ajuste o ID da planilha Google Sheets no nó `Sheets - Tickets`
+5. Crie um workflow separado com o nó `Error Trigger` e vincule em Settings → Error Workflow
 6. Ative o workflow
 
----
-
-## Autor
-
-**Matheus Marques**
-Automation Builder | n8n · Claude Code · Agentes de IA | Background Industrial | AAMP Certified
-
-[![LinkedIn](https://img.shields.io/badge/LinkedIn-Matheus%20Marques-blue)](https://linkedin.com/in/seu-perfil)
-[![GitHub](https://img.shields.io/badge/GitHub-matheusmmarinho7-black)](https://github.com/matheusmmarinho7)
+> Em produção real, recomendo usar um e-mail dedicado de suporte em vez de e-mail pessoal, para evitar que notificações automáticas sejam processadas pelo workflow.
